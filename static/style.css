@@ -1,0 +1,98 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@700&display=swap');
+
+html,
+body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    background-color: #282c34;
+    font-family: 'Noto Sans SC', sans-serif;
+    display: grid;
+    place-items: center;
+}
+
+.container {
+    display: inline-flex;
+    flex-direction: column;
+    background-color: #3a3f4b;
+    padding: 12px;
+    gap: 12px;
+    border-radius: 12px;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.5), inset 0 0 5px rgba(198, 120, 221, 0.2);
+    /* 增加一点外发光和内部魔法光晕 */
+    text-align: center;
+}
+
+.status-panel {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+}
+
+.status-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.status-box span {
+    font-size: 14px;
+    font-weight: 700;
+    color: #abb2bf;
+    white-space: nowrap;
+}
+
+.status-indicator {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    transition: all 0.3s ease;
+    border: 2px solid #5c6370;
+}
+
+.status-indicator.waiting {
+    background-color: #e5c07b;
+    /* 等待: 琥珀色 */
+    box-shadow: 0 0 8px rgba(229, 192, 123, 0.6);
+}
+
+.status-indicator.ready {
+    background-color: #98c379;
+    border-color: #7a9c61;
+    box-shadow: 0 0 10px rgba(152, 195, 121, 0.8);
+}
+
+button {
+    padding: 8px 16px;
+    font-size: 16px;
+    font-weight: 700;
+    color: #ffffff;
+    background-color: #61afef;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+    /* 给文字加一点阴影 */
+}
+
+button:hover {
+    background-color: #528ab9;
+    box-shadow: 0 0 8px rgba(97, 175, 239, 0.5);
+}
+
+button:active {
+    transform: scale(0.98);
+}
+
+button:disabled {
+    background-color: #4b5263;
+    opacity: 0.8;
+    cursor: not-allowed;
+    box-shadow: none;
+}

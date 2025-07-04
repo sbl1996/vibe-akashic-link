@@ -1,0 +1,1 @@
+nohup gunicorn --worker-class eventlet -w 1 --bind 0.0.0.0:8080 server:app > server.log 2>&1 &

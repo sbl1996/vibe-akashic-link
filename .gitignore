@@ -1,0 +1,133 @@
+*.pid
+host/config.ini
+
+# ===================================================================
+# Python (通用)
+# ===================================================================
+# 字节码或编译文件
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# C 编译的扩展
+*.so
+
+# 打包和分发
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+*.manifest
+*.spec
+
+# Python 日志文件
+*.log
+*.log.*
+
+# 单元测试和覆盖率报告
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.pytest_cache/
+.hypothesis/
+
+# ===================================================================
+# 虚拟环境 (Virtual Environments)
+# 永远不要提交你的虚拟环境
+# ===================================================================
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# ===================================================================
+# Flask 框架特定文件
+# ===================================================================
+# Flask 实例文件夹，通常包含不应提交的配置或数据库
+instance/
+
+# 开发时使用的 SQLite 数据库
+*.sqlite
+*.sqlite3
+
+# Flask-Cache 缓存目录
+.webassets-cache
+.flask_cache/
+
+# Flask-Session 缓存
+flask_session/
+
+# ===================================================================
+# PySide / PyQt 特定文件
+# ===================================================================
+# 由 .ui 文件 (XML界面定义) 通过 uic (pyside6-uic) 编译生成的 Python 文件
+# 你应该提交 .ui 文件，而不是生成的 .py 文件
+*_ui.py
+ui_*.py
+
+# 由 .qrc 文件 (资源集合) 通过 rcc (pyside6-rcc) 编译生成的 Python 文件
+# 你应该提交 .qrc 文件，而不是生成的 .py 文件
+*_rc.py
+qrc_*.py
+
+# ===================================================================
+# 敏感信息和环境变量
+# 使用 .env.example 或类似模板文件代替
+# ===================================================================
+.env
+.flaskenv
+secrets.py
+config.py  # 如果你的 config.py 包含敏感信息，请忽略它，并提供一个 config.py.example
+
+# ===================================================================
+# IDE 和编辑器配置文件
+# ===================================================================
+# PyCharm
+.idea/
+
+# Visual Studio Code
+.vscode/
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Eclipse
+.project
+.pydevproject
+.settings/
+
+# ===================================================================
+# 操作系统生成的文件
+# ===================================================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+.Trashes
+.Spotlight-V100
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini

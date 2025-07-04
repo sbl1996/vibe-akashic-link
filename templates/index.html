@@ -1,0 +1,28 @@
+<!-- FILE: templates/index.html -->
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>阿克夏连结</title>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/png">
+    <style>
+        html, body { height: 100%; margin: 0; display: flex; justify-content: center; align-items: center; background-color: #282c34; font-family: sans-serif; }
+        button { padding: 15px 30px; font-size: 18px; color: white; background-color: #61afef; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
+        button:hover { background-color: #528ab9; }
+    </style>
+</head>
+<body>
+    <button onclick="openVoyagerCompass()">启动 旅人罗盘</button>
+
+    <script>
+        function openVoyagerCompass() {
+            const width = 160, height = 160;
+            const left = (screen.width / 2) - (width / 2);
+            const top = (screen.height / 2) - (height / 2);
+            const features = `popup=yes, width=${width}, height=${height}, top=${top}, left=${left}`;
+            // 注意这里的URL要和服务器的路由匹配
+            window.open('client', '旅人罗盘', features);
+        }
+    </script>
+</body>
+</html>

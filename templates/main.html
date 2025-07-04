@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>旅人罗盘</title>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/png">
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="status-panel">
+            <div class="status-box">
+                <span>α</span>
+                <div id="opponent-status-indicator" class="status-indicator waiting"></div>
+            </div>
+            <div class="status-box">
+                <span>β</span>
+                <div id="my-status-indicator" class="status-indicator waiting"></div>
+            </div>
+        </div>
+        <button id="ready-button">共 鸣</button>
+    </div>
+
+    <script>
+        const SERVER_URL = "{{ server_url | safe }}";
+        // ------------------------------------
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const socket = io(SERVER_URL);
+
+            const myIndicator = document.getElementById('my-status-indicator');
+            const opponentIndicator = document.getElementById('opponent-status-indicator');
+            const readyButton = document.getElementById('ready-button');
+            
+            const myRole = 'participant'; 
+            const opponentRole = 'host';
+
+            socket.on('connect', () => { console.log('已接入阿克夏连结'); });
+
+            socket.on('status_update', (state) => {
+                updateIndicator(myIndicator, state[myRole + '_ready']);
+                updateIndicator(opponentIndicator, state[opponentRole + '_ready']);
+                readyButton.disabled = state[myRole + '_ready'];
+            });
+
+            readyButton.addEventListener('click', () => {
+                socket.emit('ready', { player: myRole });
+                readyButton.disabled = true;
+            });
+
+            function updateIndicator(element, isReady) {
+                if (isReady) {
+                    element.classList.remove('waiting');
+                    element.classList.add('ready');
+                } else {
+                    element.classList.remove('ready');
+                    element.classList.add('waiting');
+                }
+            }
+        });
+    </script>
+</body>
+</html>
