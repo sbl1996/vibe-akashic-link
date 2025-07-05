@@ -1,27 +1,27 @@
 # Akashic Link
 
-A simple client-server application to synchronize a mouse click on a host machine, triggered remotely by a participant. Ideal for cooperative actions in games or applications that require precise timing between two users. I originally developed this project to play visual novels (galgames) online with my girlfriend❤️.
+A simple client-server application to synchronize a mouse click or mouse wheel scroll on a host machine, triggered remotely by a participant. Ideal for cooperative actions in games or applications that require precise timing between two users. Originally developed to play visual novels (galgames) online with my girlfriend❤️.
 
 ## How It Works
 
 The system consists of three main components: a central server, a desktop client for the "Host", and a web interface for the "Participant".
 
 1.  **Server**: A Flask-SocketIO server that listens for "ready" signals from both the Host and the Participant.
-2.  **Host Client**: A desktop application (PySide6) run by User A. This user pre-defines a specific coordinate on their screen to be clicked.
+2.  **Host Client**: A desktop application (PySide6) run by User A. This user pre-defines a specific coordinate on their screen to be clicked or scrolled.
 3.  **Participant Web UI**: A simple web page visited by User B.
 
 **The Flow:**
-1.  The Host runs the desktop app and "locks" a click position on their screen.
+1.  The Host runs the desktop app and "locks" a click/scroll position on their screen.
 2.  The Participant opens the provided server URL in their browser.
 3.  Both users click their respective "Ready" buttons.
 4.  The server receives both "ready" signals and immediately sends a "Proceed" command to the Host's client.
-5.  The Host's client automatically performs a mouse click at the pre-defined coordinate.
+5.  The Host's client automatically performs a mouse click or scroll at the pre-defined coordinate, depending on the selected mode.
 
 ---
 
 ## Installation & Setup
 
-You need to set up the server (on a machine accessible by both users, like a VPS) and the host client (on the machine that will perform the click).
+You need to set up the server (on a machine accessible by both users, like a VPS) and the host client (on the machine that will perform the click/scroll).
 
 ### 1. Server Setup
 
@@ -37,7 +37,7 @@ The server coordinates the communication. It is recommended to run it on a Linux
     ```bash
     python3 -m venv venv
     source venv/bin/activate  # On Windows, use `venv\Scripts\activate`
-    pip install -r requirements.server.txt
+    pip install -r requirements.txt
     ```
 
 3.  **Run the server:**
@@ -64,7 +64,7 @@ The server coordinates the communication. It is recommended to run it on a Linux
 
 ### 2. Host Client Setup
 
-This is the desktop application for the user whose computer will perform the click.
+This is the desktop application for the user whose computer will perform the click or scroll.
 
 1.  **Navigate to the host directory** from the project root.
 
@@ -95,7 +95,8 @@ This is the desktop application for the user whose computer will perform the cli
 
 2.  **Host (User α)**:
     *   Launch the "Dimension Anchor" desktop app (`host/main.py`).
-    *   Click **"⚡️ 锁定奇点"**. You have 3 seconds to move your mouse to the desired click location on your screen. The coordinates will be saved.
+    *   **Select Mode**: Use the "模式" (Mode) selector to choose between "Click" (点击) or "Scroll" (滚轮).
+    *   Click **"⚡️ 锁定奇点"**. You have 3 seconds to move your mouse to the desired location on your screen. The coordinates will be saved.
     *   When you are ready to synchronize, click **"吟唱"**. Your status light (α) will turn green.
 
 3.  **Participant (User β)**:
@@ -103,4 +104,4 @@ This is the desktop application for the user whose computer will perform the cli
     *   Click the button to launch the **"旅人罗盘"**. A small pop-up window will appear.
     *   When you are ready, click **"共鸣"**. Your status light (β) will turn green.
 
-As soon as both users are ready, the Host's computer will instantly perform a mouse click at the locked location, and the status for both users will reset for the next synchronization.
+As soon as both users are ready, the Host's computer will instantly perform a mouse click or scroll at the locked location, and the status for both users will reset for the next synchronization.

@@ -5,7 +5,8 @@ import pyautogui
 import socketio
 import configparser
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
-                               QPushButton, QLabel, QHBoxLayout, QMessageBox, QFrame)
+                               QPushButton, QLabel, QHBoxLayout, QMessageBox, QFrame,
+                               QGroupBox, QRadioButton)
 from PySide6.QtCore import QThread, Signal, Qt, QTimer
 from PySide6.QtGui import QIcon
 
@@ -101,6 +102,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.click_pos = None
+        self.action_mode = 'click'
 
         try:
             self.config = load_or_create_config(self)
@@ -126,7 +128,7 @@ class MainWindow(QMainWindow):
         
         self.socket_thread = SocketIOThread(self.server_url)
         self.socket_thread.status_updated.connect(self.update_status_ui)
-        self.socket_thread.proceed_click.connect(self.perform_click)
+        self.socket_thread.proceed_click.connect(self.perform_action)
         self.socket_thread.connection_error.connect(self.show_connection_error)
         self.socket_thread.connection_success.connect(self.on_connection_success)
         self.socket_thread.start()
@@ -169,6 +171,21 @@ class MainWindow(QMainWindow):
         line.setFrameShadow(QFrame.Sunken)
         line.setObjectName("line")
 
+        action_group_box = QGroupBox("模式")
+        action_group_box.setObjectName("actionGroup")
+        action_layout = QHBoxLayout()
+        
+        self.radio_click = QRadioButton("Click")
+        self.radio_click.setChecked(True)
+        self.radio_click.toggled.connect(self.on_action_mode_changed)
+        
+        self.radio_scroll = QRadioButton("Scroll")
+        self.radio_scroll.toggled.connect(self.on_action_mode_changed)
+        
+        action_layout.addWidget(self.radio_click)
+        action_layout.addWidget(self.radio_scroll)
+        action_group_box.setLayout(action_layout)
+
         settings_panel = QHBoxLayout()
         self.set_pos_button = QPushButton("⚡️ 锁定奇点")
         self.set_pos_button.clicked.connect(self.on_set_pos_click)
@@ -181,12 +198,13 @@ class MainWindow(QMainWindow):
         # --- 6. 将所有组件按顺序添加到主布局中 ---
         main_layout.addStretch(1) # 添加一个伸缩项，将内容向下推
         main_layout.addWidget(main_panel)
+        main_layout.addWidget(action_group_box)
         main_layout.addWidget(line)
         main_layout.addLayout(settings_panel)
         main_layout.addStretch(1) # 添加另一个，实现垂直居中
 
         # 调整窗口尺寸以适应新布局
-        self.setFixedSize(200, 220)
+        self.setFixedSize(220, 280)
 
     def create_status_box(self, title):
         widget = QWidget()
@@ -219,9 +237,23 @@ class MainWindow(QMainWindow):
                 background-color: #3a3f4b; /* 比主背景稍亮的颜色 */
                 border-radius: 12px;      /* 圆角效果 */
             }
-            #statusBox {
-                background: transparent;
+            QGroupBox {
+                color: #9da5b4;
+                font-size: 11px;
+                border: 1px solid #3a3f4b;
+                border-radius: 4px;
+                margin-top: 1ex;
+                font-weight: bold;
             }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                subcontrol-position: top center;
+                padding: 0 3px;
+            }
+            QRadioButton {
+                font-size: 12px;
+            }
+            #statusBox { background: transparent; }
             #statusTitleLabel {
                 background: transparent;
                 font-weight: bold;
@@ -259,7 +291,9 @@ class MainWindow(QMainWindow):
                 font-size: 13px;
                 padding: 4px;
             }
+            QPushButton:disabled { color: #5c6370; }
             #infoLabel { font-size: 11px; color: #5c6370; }
+            #infoLabel:disabled { color: #4b5263; }
         """)
 
     def update_status_ui(self, state):
@@ -276,7 +310,7 @@ class MainWindow(QMainWindow):
         
     def on_connection_success(self):
         self.ready_button.setEnabled(True)
-        self.set_pos_button.setEnabled(True)
+        self.on_action_mode_changed()
         
     def capture_position(self):
         self.click_pos = pyautogui.position()
@@ -292,7 +326,23 @@ class MainWindow(QMainWindow):
         self.hide()
         QTimer.singleShot(self.set_pos_delay, self.capture_position)
 
-    def perform_click(self):
+    def on_action_mode_changed(self):
+        self.set_pos_button.setEnabled(self.socket_thread.sio.connected)
+        self.pos_label.setEnabled(True)
+        is_click_mode = self.radio_click.isChecked()
+        if is_click_mode:
+            self.action_mode = 'click'
+        else:
+            self.action_mode = 'scroll'
+        print(f"动作模式已切换为: {self.action_mode}")
+
+    def perform_action(self):
+        if self.action_mode == 'click':
+            self.perform_click_action()
+        elif self.action_mode == 'scroll':
+            self.perform_scroll_action()
+
+    def perform_click_action(self):
         if self.click_pos:
             try:
                 # 1. 保存鼠标的当前位置
@@ -317,6 +367,35 @@ class MainWindow(QMainWindow):
                 QMessageBox.warning(self, "干涉错误", f"推进时间线时发生错误:\n{e}")
                 if 'original_pos' in locals():
                     pyautogui.moveTo(original_pos, duration=0.2)
+        else:
+            QMessageBox.warning(self, "警告", "尚未锁定奇点坐标！")
+            if self.socket_thread.sio.connected:
+                self.ready_button.setEnabled(True)
+
+    def perform_scroll_action(self):
+        if self.click_pos:
+            try:
+                # 1. 保存鼠标的当前位置
+                original_pos = pyautogui.position()
+
+                # 2. 执行方案一中成功的点击逻辑
+                # 第一次点击，确保游戏窗口激活
+                pyautogui.click(self.click_pos)
+                time.sleep(0.1) # 等待窗口激活
+
+                # 在已激活的窗口上，模拟一次滚轮向下
+                pyautogui.moveTo(self.click_pos)
+                pyautogui.scroll(-120)
+                print("执行：滚轮向下")
+
+                # 3. 将鼠标平滑移回原始位置
+                time.sleep(0.05)
+                pyautogui.moveTo(original_pos)
+                # 负值表示向下滚动。-120 通常代表一个“刻度”。
+            except Exception as e:
+                QMessageBox.warning(self, "干涉错误", f"执行滚轮操作时发生错误:\n{e}")
+                if self.socket_thread.sio.connected:
+                    self.ready_button.setEnabled(True)
         else:
             QMessageBox.warning(self, "警告", "尚未锁定奇点坐标！")
             if self.socket_thread.sio.connected:
