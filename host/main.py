@@ -1,5 +1,6 @@
 import os
 import time
+from pathlib import Path
 import sys
 import pyautogui
 import socketio
@@ -12,35 +13,48 @@ from PySide6.QtGui import QIcon
 
 pyautogui.FAILSAFE = False
 
-def get_application_path():
-    """获取应用程序的根目录，兼容脚本运行和PyInstaller打包"""
-    if getattr(sys, 'frozen', False):
-        # 如果是PyInstaller打包的.exe文件
-        return os.path.dirname(sys.executable)
-    else:
-        # 如果是直接运行的.py脚本
-        return os.path.dirname(os.path.abspath(__file__))
+def resource_path(relative_path):
+    """ 获取资源的绝对路径，无论是开发环境还是PyInstaller打包后 """
+    try:
+        # PyInstaller 创建一个临时文件夹，并把路径存储在 _MEIPASS 中
+        base_path = sys._MEIPASS
+    except Exception:
+        # 在开发环境中，使用文件的当前路径
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
 
 def load_or_create_config(parent_window):
-    """加载或创建 config.ini 文件"""
-    path = get_application_path()
-    config_file = os.path.join(path, 'config.ini')
-    
-    config = configparser.ConfigParser()
+    """
+    确定配置文件的最终路径。
+    如果exe同级目录有config.ini，则使用它。
+    如果没有，则从打包的资源中复制一份出来。
+    """
+    # 确定应用程序的根目录（exe所在目录或脚本所在目录）
+    if getattr(sys, 'frozen', False): # 如果是打包后的 exe
+        app_dir = Path(sys.executable).parent
+    else: # 如果是直接运行 .py 脚本
+        app_dir = Path(__file__).parent
 
-    if not os.path.exists(config_file):
-        # 如果配置文件不存在，则创建并写入默认值
-        print("未找到 config.ini，正在创建默认配置...")
-        config['Server'] = {'url': 'http://127.0.0.1:8802'}
-        config['Settings'] = {'set_pos_delay_ms': '3000'}
-        with open(config_file, 'w', encoding='utf-8') as f:
-            f.write("# --- Sync Tool Config ---\n\n")
-            config.write(f)
+    user_config_path = app_dir / 'config.ini'
+
+    # 如果用户配置文件不存在，就从内部模板创建一份
+    if not user_config_path.exists():
         QMessageBox.information(parent_window, "首次运行", 
-                                f"已在以下位置创建默认配置文件:\n{config_file}\n请根据需要修改服务器地址。")
-    
-    # 读取配置文件
-    config.read(config_file, encoding='utf-8')
+                                f"已在以下位置创建默认配置文件:\n{user_config_path}\n请根据需要修改服务器地址。")
+        try:
+            # resource_path() 会找到打包在exe内部的模板文件
+            template_path = resource_path('config.ini')
+            with open(template_path, 'r', encoding='utf-8') as f_in:
+                default_config = f_in.read()
+            with open(user_config_path, 'w', encoding='utf-8') as f_out:
+                f_out.write(default_config)
+        except Exception as e:
+            # 如果创建失败，这是一个严重问题，需要通知用户
+            QMessageBox.critical(None, "致命错误", f"无法创建默认配置文件！\n请检查程序是否有权限在以下目录写入文件：\n{app_dir}\n\n错误: {e}")
+            sys.exit(-1) # 退出程序
+    config = configparser.ConfigParser()
+    config.read(str(user_config_path), encoding='utf-8')
     return config
 
 class SocketIOThread(QThread):
@@ -114,8 +128,7 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle("次元之锚")
 
-        app_path = get_application_path()
-        icon_path = os.path.join(app_path, 'assets', 'icon.ico')
+        icon_path = resource_path('assets/icon.ico')
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
         else:
@@ -150,8 +163,8 @@ class MainWindow(QMainWindow):
 
         # --- 2. 创建上半部分的状态指示灯布局 ---
         status_panel = QHBoxLayout()
-        self.my_status_widget = self.create_status_box("α")
-        self.opponent_status_widget = self.create_status_box("β")
+        self.my_status_widget = self.create_status_box("α", "myStatusTitleLabel")
+        self.opponent_status_widget = self.create_status_box("β", "opponentStatusTitleLabel")
         status_panel.addWidget(self.my_status_widget)
         status_panel.addWidget(self.opponent_status_widget)
 
@@ -189,7 +202,7 @@ class MainWindow(QMainWindow):
         settings_panel = QHBoxLayout()
         self.set_pos_button = QPushButton("⚡️ 锁定奇点")
         self.set_pos_button.clicked.connect(self.on_set_pos_click)
-        self.set_pos_button.setEnabled(False)
+        self.set_pos_button.setEnabled(True)
         self.pos_label = QLabel("NULL")
         self.pos_label.setObjectName("infoLabel")
         settings_panel.addWidget(self.set_pos_button)
@@ -206,7 +219,7 @@ class MainWindow(QMainWindow):
         # 调整窗口尺寸以适应新布局
         self.setFixedSize(220, 280)
 
-    def create_status_box(self, title):
+    def create_status_box(self, title, object_name):
         widget = QWidget()
         widget.setObjectName("statusBox")
         layout = QVBoxLayout(widget)
@@ -214,7 +227,7 @@ class MainWindow(QMainWindow):
         layout.setSpacing(3)
         
         title_label = QLabel(title)
-        title_label.setObjectName("statusTitleLabel")
+        title_label.setObjectName(object_name)
         title_label.setAlignment(Qt.AlignCenter)
         
         status_indicator = QLabel()
@@ -254,11 +267,19 @@ class MainWindow(QMainWindow):
                 font-size: 12px;
             }
             #statusBox { background: transparent; }
-            #statusTitleLabel {
+            #myStatusTitleLabel {
                 background: transparent;
                 font-weight: bold;
                 font-size: 16px;
                 padding: 6px 0px;
+                color: #61afef;
+            }
+            #opponentStatusTitleLabel {
+                background: transparent;
+                font-weight: bold;
+                font-size: 16px;
+                padding: 6px 0px;
+                color: #e06c75;
             }
             #statusIndicator {
                 background-color: #e5c07b;
@@ -328,7 +349,7 @@ class MainWindow(QMainWindow):
 
     def on_action_mode_changed(self):
         self.set_pos_button.setEnabled(self.socket_thread.sio.connected)
-        self.pos_label.setEnabled(True)
+
         is_click_mode = self.radio_click.isChecked()
         if is_click_mode:
             self.action_mode = 'click'
