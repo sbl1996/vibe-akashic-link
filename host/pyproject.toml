@@ -1,0 +1,12 @@
+[project]
+name = "vibe-akashic-link-host"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "pyautogui>=0.9.54",
+    "pyinstaller>=6.14.2",
+    "pyside6>=6.9.1",
+    "python-socketio[client]>=5.13.0",
+]
