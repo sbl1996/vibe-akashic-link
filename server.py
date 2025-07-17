@@ -9,74 +9,82 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'c10a07fe5070c14fb1975fc9fe0398f65e367dc84d089160')
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-# 存储游戏会话状态
-# 在真实的多房间应用中，你会用一个字典来管理多个房间的状态
-# 但对于你们两人使用，一个全局状态就足够了。
+# --- 状态管理 ---
+# desktop_host_sid: 存储桌面客户端的SID，它是动作的唯一执行者。
+# game_state: 存储当前一轮的准备状态。
+desktop_host_sid = None
 game_state = {
     'host_ready': False,
     'participant_ready': False,
-    'host_sid': None
 }
 
 @app.route('/')
 def index():
-    """为参与者提供Web界面"""
+    """提供角色选择页面"""
     return render_template('index.html')
 
 @app.route('/client')
 def main():
-    """为参与者提供Web界面"""
-    server_url = f"http://{request.host}" # 自动获取服务器地址
-    print(f"server_url: {server_url}")
-    return render_template('main.html', server_url=server_url)
+    """为参与者提供主操作界面"""
+    server_url = f"http://{request.host}"
+    # 从URL参数获取角色，默认为 'participant'
+    role = request.args.get('role', 'participant')
+    print(f"为角色 {role} 生成客户端页面，服务器地址: {server_url}")
+    return render_template('main.html', server_url=server_url, role=role)
 
 @socketio.on('connect')
 def handle_connect():
-    # 使用 request.sid 获取当前连接的客户端ID
     print(f'客户端连接: sid={request.sid}')
     # 新客户端连接时，向其单独发送一次最新状态
     emit('status_update', game_state)
 
 @socketio.on('disconnect')
 def handle_disconnect():
+    global desktop_host_sid
     sid = request.sid
     print(f'客户端断开: sid={sid}')
-    # 如果断开的是主持人，重置状态以防万一
-    if sid == game_state['host_sid']:
-        print("主持人已断开，重置游戏。")
+    # 如果断开的是桌面主程序，这是个严重问题
+    if sid == desktop_host_sid:
+        print("!!! 警告：桌面主程序已断开！重置所有状态。 !!!")
+        desktop_host_sid = None
+        # 因为主程序断了，游戏无法继续，重置准备状态
         reset_game_state()
         emit('status_update', game_state, broadcast=True)
 
+@socketio.on('register_host_client')
+def handle_register_host():
+    """
+    专门用于桌面客户端注册自己身份的事件。
+    """
+    global desktop_host_sid
+    desktop_host_sid = request.sid
+    print(f"桌面主程序已注册，SID: {desktop_host_sid}")
+    # 同时，如果桌面客户端重连，我们也重置游戏状态
+    reset_game_state()
+    emit('status_update', game_state, broadcast=True)
+
 @socketio.on('ready')
 def handle_ready(data):
-    """处理玩家的“准备就绪”事件，并在这里捕获SID"""
+    """处理玩家的“准备就绪”事件"""
     player = data.get('player')
-    sid = request.sid # 获取发送此事件的客户端的SID
 
     if player == 'host':
         game_state['host_ready'] = True
-        # ✨ 关键修改：在这里，我们捕获并保存主持人的sid
-        game_state['host_sid'] = sid
-        print(f"主持人已就绪 (SID: {sid})")
+        print(f"角色 'host' (α) 已就绪 (来自 SID: {request.sid})")
     elif player == 'participant':
         game_state['participant_ready'] = True
-        print(f"参与者已就绪 (SID: {sid})")
+        print(f"角色 'participant' (β) 已就绪 (来自 SID: {request.sid})")
 
-    # 广播状态更新
     emit('status_update', game_state, broadcast=True)
 
-    # 检查是否双方都已就绪
     if game_state['host_ready'] and game_state['participant_ready']:
-        host_sid_to_notify = game_state['host_sid']
+        print("双方均已就绪，准备向桌面主程序发送点击指令...")
         
-        print(f"双方均已就绪，准备向主持人 (SID: {host_sid_to_notify}) 发送点击指令...")
-        
-        if host_sid_to_notify:
-            # 只向主持人发送“执行点击”指令
-            emit('proceed_click', to=host_sid_to_notify)
-            print(f"指令已发送至 SID: {host_sid_to_notify}")
+        if desktop_host_sid:
+            emit('proceed_click', to=desktop_host_sid)
+            print(f"指令已发送至桌面主程序 SID: {desktop_host_sid}")
         else:
-            print("错误：host_sid 未定义，无法发送点击指令！")
+            print("错误：桌面主程序未连接，无法发送点击指令！")
         
         # 重置状态并广播
         reset_game_state()
@@ -86,10 +94,9 @@ def handle_ready(data):
         print("状态已重置")
 
 def reset_game_state():
-    """重置准备状态，但保留SID用于断线重连等场景"""
+    """重置准备状态"""
     game_state['host_ready'] = False
     game_state['participant_ready'] = False
-    # 注意：我们不清空 host_sid，这样如果主持人没断线，下次点击时仍然有效
 
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=8080, debug=True)

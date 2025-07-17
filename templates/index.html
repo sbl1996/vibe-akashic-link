@@ -6,22 +6,98 @@
     <title>阿克夏连结</title>
     <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/png">
     <style>
-        html, body { height: 100%; margin: 0; display: flex; justify-content: center; align-items: center; background-color: #282c34; font-family: sans-serif; }
-        button { padding: 15px 30px; font-size: 18px; color: white; background-color: #61afef; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
-        button:hover { background-color: #528ab9; }
+        html, body {
+            height: 100%;
+            margin: 0;
+            display: grid;
+            place-items: center;
+            background-color: #282c34;
+            font-family: 'Noto Sans SC', sans-serif;
+        }
+
+        .card {
+            background-color: #3a3f4b;
+            border-radius: 12px;
+            padding: 30px 40px;
+            text-align: center;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5), inset 0 0 5px rgba(198, 120, 221, 0.1);
+            border: 1px solid #4b5263;
+            display: flex;
+            flex-direction: column;
+            gap: 25px; /* 标题和按钮组之间的间距 */
+            transition: transform 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+        }
+
+        .card h1 {
+            color: #abb2bf;
+            font-size: 22px;
+            font-weight: 300; /* 使用更细的字重以显优雅 */
+            margin: 0;
+            letter-spacing: 1px;
+            text-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+        }
+        
+        /* 新增：按钮组容器 */
+        .button-group {
+            display: flex;
+            gap: 15px; /* 两个按钮之间的间距 */
+        }
+
+        .card button { 
+            padding: 12px 24px; 
+            font-size: 16px; 
+            color: white; 
+            border: none; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            font-weight: 700;
+            min-width: 180px;
+            transition: all 0.2s ease-in-out;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        .card button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.4);
+        }
+
+        .card button:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+        }
+
+        .host-btn { background-color: #61afef; }
+        .host-btn:hover { background-color: #7abcfb; }
+
+        .participant-btn { background-color: #e06c75; }
+        .participant-btn:hover { background-color: #ea8a91; }
     </style>
 </head>
 <body>
-    <button onclick="openVoyagerCompass()">启动 旅人罗盘</button>
+    <div class="card">
+        <h1>迷途的旅人啊，宣告你的存在</h1>
+        <div class="button-group">
+            <button class="host-btn" onclick="openVoyagerCompass('host')">α (时空锚定者)</button>
+            <button class="participant-btn" onclick="openVoyagerCompass('participant')">β (命运共鸣者)</button>
+        </div>
+    </div>
 
     <script>
-        function openVoyagerCompass() {
+        function openVoyagerCompass(role) {
             const width = 160, height = 160;
             const left = (screen.width / 2) - (width / 2);
             const top = (screen.height / 2) - (height / 2);
             const features = `popup=yes, width=${width}, height=${height}, top=${top}, left=${left}`;
-            // 注意这里的URL要和服务器的路由匹配
-            window.open('client', '旅人罗盘', features);
+            
+            // 在URL中通过查询参数传递角色
+            const url = `client?role=${role}`;
+            
+            // 使用角色名作为窗口名，防止同时打开两个不同角色的窗口
+            window.open(url, `旅人罗盘_${role}`, features);
         }
     </script>
 </body>

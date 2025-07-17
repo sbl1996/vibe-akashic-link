@@ -13,11 +13,11 @@
         <div class="status-panel">
             <div class="status-box">
                 <span>α</span>
-                <div id="opponent-status-indicator" class="status-indicator waiting"></div>
+                <div id="host-status-indicator" class="status-indicator waiting"></div>
             </div>
             <div class="status-box">
                 <span>β</span>
-                <div id="my-status-indicator" class="status-indicator waiting"></div>
+                <div id="participant-status-indicator" class="status-indicator waiting"></div>
             </div>
         </div>
         <button id="ready-button">共 鸣</button>
@@ -25,28 +25,46 @@
 
     <script>
         const SERVER_URL = "{{ server_url | safe }}";
+        const MY_ROLE = "{{ role | safe }}"; // 'host' or 'participant'
         // ------------------------------------
 
         document.addEventListener('DOMContentLoaded', () => {
             const socket = io(SERVER_URL);
 
-            const myIndicator = document.getElementById('my-status-indicator');
-            const opponentIndicator = document.getElementById('opponent-status-indicator');
-            const readyButton = document.getElementById('ready-button');
-            
-            const myRole = 'participant'; 
-            const opponentRole = 'host';
+            // 根据我的角色，决定哪个指示灯是'我的'，哪个是'对方的'
+            const myIndicator = (MY_ROLE === 'host') ? 
+                document.getElementById('host-status-indicator') : 
+                document.getElementById('participant-status-indicator');
 
-            socket.on('connect', () => { console.log('已接入阿克夏连结'); });
+            const opponentIndicator = (MY_ROLE === 'host') ? 
+                document.getElementById('participant-status-indicator') : 
+                document.getElementById('host-status-indicator');
+            
+            const readyButton = document.getElementById('ready-button');
+
+            // 根据角色动态设置标题和按钮颜色，提升用户体验
+            document.title = `旅人罗盘 (${MY_ROLE === 'host' ? 'α' : 'β'})`;
+            if (MY_ROLE === 'host') {
+                readyButton.style.backgroundColor = '#61afef'; // α 主色
+                readyButton.textContent = '吟 唱';
+            } else {
+                readyButton.style.backgroundColor = '#e06c75'; // β 主色
+                readyButton.textContent = '共 鸣';
+            }
+            
+            socket.on('connect', () => { console.log(`已作为 ${MY_ROLE} 接入阿克夏连结`); });
 
             socket.on('status_update', (state) => {
-                updateIndicator(myIndicator, state[myRole + '_ready']);
-                updateIndicator(opponentIndicator, state[opponentRole + '_ready']);
-                readyButton.disabled = state[myRole + '_ready'];
+                // state 的 key 是 'host_ready' 和 'participant_ready'
+                updateIndicator(document.getElementById('host-status-indicator'), state.host_ready);
+                updateIndicator(document.getElementById('participant-status-indicator'), state.participant_ready);
+                
+                // 禁用按钮的逻辑：如果我的角色对应的状态为 'ready'，则禁用
+                readyButton.disabled = state[MY_ROLE + '_ready'];
             });
 
             readyButton.addEventListener('click', () => {
-                socket.emit('ready', { player: myRole });
+                socket.emit('ready', { player: MY_ROLE });
                 readyButton.disabled = true;
             });
 

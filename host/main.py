@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                                QPushButton, QLabel, QHBoxLayout, QMessageBox, QFrame,
                                QGroupBox, QRadioButton)
 from PySide6.QtCore import QThread, Signal, Qt, QTimer
-from PySide6.QtGui import QIcon
+from PySide6.QtGui import QIcon, QKeySequence
 
 pyautogui.FAILSAFE = False
 
@@ -55,7 +55,7 @@ def load_or_create_config(parent_window):
             sys.exit(-1) # 退出程序
     config = configparser.ConfigParser()
     config.read(str(user_config_path), encoding='utf-8')
-    return config
+    return config, user_config_path
 
 class SocketIOThread(QThread):
     status_updated = Signal(dict)
@@ -73,6 +73,7 @@ class SocketIOThread(QThread):
         @self.sio.event
         def connect():
             print("成功连接到服务器！")
+            self.sio.emit('register_host_client')
             self.connection_success.emit()
 
         @self.sio.event
@@ -95,7 +96,7 @@ class SocketIOThread(QThread):
 
     def run(self):
         try:
-            self.sio.connect(self.server_url, transports=['websocket']) # 明确使用websocket
+            self.sio.connect(self.server_url, transports=['websocket'])
             self.sio.wait()
         except socketio.exceptions.ConnectionError as e:
             print(f"无法连接到服务器: {e}")
@@ -117,14 +118,18 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.click_pos = None
         self.action_mode = 'click'
+        self.is_capturing_hotkey = False
 
         try:
-            self.config = load_or_create_config(self)
+            self.config, self.config_path = load_or_create_config(self)
             self.server_url = self.config.get('Server', 'url')
             self.set_pos_delay = self.config.getint('Settings', 'set_pos_delay_ms')
+            self.hotkey_name = self.config.get('Settings', 'hotkey', fallback='F5')
+            self.update_hotkey_from_name(self.hotkey_name)
+
         except (configparser.NoSectionError, configparser.NoOptionError) as e:
             QMessageBox.critical(self, "配置错误", f"config.ini 文件格式不正确或缺少必要项。\n错误: {e}\n程序将退出。")
-            sys.exit(1) # 退出程序
+            sys.exit(1)
 
         self.setWindowTitle("次元之锚")
 
@@ -139,6 +144,8 @@ class MainWindow(QMainWindow):
         self.init_ui()
         self.apply_stylesheet()
         
+        self.update_pos_button_state(False)
+
         self.socket_thread = SocketIOThread(self.server_url)
         self.socket_thread.status_updated.connect(self.update_status_ui)
         self.socket_thread.proceed_click.connect(self.perform_action)
@@ -150,42 +157,41 @@ class MainWindow(QMainWindow):
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         # 主布局，负责整体垂直排列，并用伸缩项将其居中
-        main_layout = QVBoxLayout(central_widget)
-        main_layout.setContentsMargins(10, 10, 10, 10) # 减小窗口边距
-        main_layout.setSpacing(10)
+        main_layout = QHBoxLayout(central_widget)
+        main_layout.setContentsMargins(10, 10, 10, 10)
+        main_layout.setSpacing(15)
 
-        # --- 1. 创建核心的“卡片”面板 ---
-        main_panel = QFrame()
-        main_panel.setObjectName("mainPanel") # 为它设置一个ID，方便用CSS美化
-        panel_layout = QVBoxLayout(main_panel)
-        panel_layout.setContentsMargins(20, 15, 20, 15) # 卡片内部的边距
-        panel_layout.setSpacing(15) # 卡片内元素的间距
+        # --- 左侧面板：状态和主操作按钮 ---
+        left_panel = QFrame()
+        left_panel.setObjectName("mainPanel")
+        left_panel_layout = QVBoxLayout(left_panel)
+        left_panel_layout.setContentsMargins(20, 15, 20, 15)
+        left_panel_layout.setSpacing(15)
 
-        # --- 2. 创建上半部分的状态指示灯布局 ---
         status_panel = QHBoxLayout()
         self.my_status_widget = self.create_status_box("α", "myStatusTitleLabel")
         self.opponent_status_widget = self.create_status_box("β", "opponentStatusTitleLabel")
         status_panel.addWidget(self.my_status_widget)
         status_panel.addWidget(self.opponent_status_widget)
 
-        # --- 3. 创建按钮，并直接添加到卡片布局中 ---
-        self.ready_button = QPushButton("吟   唱") 
+        self.ready_button = QPushButton("吟   唱")
         self.ready_button.setObjectName("readyButton")
         self.ready_button.clicked.connect(self.on_ready_click)
         self.ready_button.setEnabled(False)
 
-        # --- 4. 将状态指示灯和按钮依次添加到卡片布局中 ---
-        panel_layout.addLayout(status_panel)
-        panel_layout.addWidget(self.ready_button)
+        left_panel_layout.addStretch(1)
+        left_panel_layout.addLayout(status_panel)
+        left_panel_layout.addWidget(self.ready_button)
+        left_panel_layout.addStretch(1)
 
-        # --- 5. 创建下方的设置面板 ---
-        line = QFrame()
-        line.setFrameShape(QFrame.HLine)
-        line.setFrameShadow(QFrame.Sunken)
-        line.setObjectName("line")
-
-        action_group_box = QGroupBox("模式")
-        action_group_box.setObjectName("actionGroup")
+        # --- 右侧面板：所有设置项 ---
+        right_panel = QWidget()
+        right_layout = QVBoxLayout(right_panel)
+        right_layout.setContentsMargins(0, 5, 0, 5)
+        right_layout.setSpacing(10)
+        
+        # 动作模式设置
+        action_group_box = QGroupBox("动作模式")
         action_layout = QHBoxLayout()
         
         self.radio_click = QRadioButton("Click")
@@ -199,25 +205,37 @@ class MainWindow(QMainWindow):
         action_layout.addWidget(self.radio_scroll)
         action_group_box.setLayout(action_layout)
 
-        settings_panel = QHBoxLayout()
+        # 奇点坐标设置
+        pos_group_box = QGroupBox("奇点坐标")
+        pos_layout = QHBoxLayout(pos_group_box)
+        pos_layout.setSpacing(8)
         self.set_pos_button = QPushButton("⚡️ 锁定奇点")
+        self.set_pos_button.setObjectName("setPosButton")
+        self.set_pos_button.setProperty("locked", "false")
         self.set_pos_button.clicked.connect(self.on_set_pos_click)
-        self.set_pos_button.setEnabled(True)
-        self.pos_label = QLabel("NULL")
-        self.pos_label.setObjectName("infoLabel")
-        settings_panel.addWidget(self.set_pos_button)
-        settings_panel.addWidget(self.pos_label)
+        self.set_pos_button.setEnabled(False)
+        pos_layout.addWidget(self.set_pos_button)
         
-        # --- 6. 将所有组件按顺序添加到主布局中 ---
-        main_layout.addStretch(1) # 添加一个伸缩项，将内容向下推
-        main_layout.addWidget(main_panel)
-        main_layout.addWidget(action_group_box)
-        main_layout.addWidget(line)
-        main_layout.addLayout(settings_panel)
-        main_layout.addStretch(1) # 添加另一个，实现垂直居中
+        # 快捷键设置
+        hotkey_group_box = QGroupBox("吟唱按键")
+        hotkey_layout = QHBoxLayout(hotkey_group_box)
+        self.set_hotkey_button = QPushButton()
+        self.set_hotkey_button.setObjectName("setHotkeyButton")
+        self.set_hotkey_button.clicked.connect(self.on_set_hotkey_click)
+        self.update_hotkey_button_text() # 设置初始文本
+        hotkey_layout.addWidget(self.set_hotkey_button)
 
-        # 调整窗口尺寸以适应新布局
-        self.setFixedSize(220, 280)
+        right_layout.addStretch(1)
+        right_layout.addWidget(action_group_box)
+        right_layout.addWidget(pos_group_box)
+        right_layout.addWidget(hotkey_group_box)
+        right_layout.addStretch(1)
+
+        left_panel.setFixedWidth(180)
+        main_layout.addWidget(left_panel)
+        main_layout.addWidget(right_panel)
+
+        self.setFixedSize(360, 200)
 
     def create_status_box(self, title, object_name):
         widget = QWidget()
@@ -304,19 +322,97 @@ class MainWindow(QMainWindow):
             }
             #readyButton:hover { background-color: #528ab9; }
             #readyButton:disabled { background-color: #4b5263; color: #888; }
-            #line { color: #3a3f4b; }
-            QPushButton {
-                background: transparent;
+            
+            #setPosButton, #setHotkeyButton {
+                background-color: #56b6c2;
+                color: white;
                 border: none;
-                font-weight: bold;
+                border-radius: 5px;
+                padding: 4px 12px;
                 font-size: 13px;
-                padding: 4px;
+                font-weight: bold;
             }
-            QPushButton:disabled { color: #5c6370; }
-            #infoLabel { font-size: 11px; color: #5c6370; }
-            #infoLabel:disabled { color: #4b5263; }
+            #setPosButton:hover, #setHotkeyButton:hover {
+                background-color: #489ba3;
+            }
+            #setPosButton:disabled {
+                background-color: #3a3f4b;
+                color: #5c6370;
+            }
+
+            #setPosButton[locked="true"] {
+                background-color: #98c379;
+                color: white;
+            }
+            #setPosButton[locked="true"]:hover {
+                background-color: #82b36a;
+            }
         """)
 
+    def update_hotkey_from_name(self, key_name):
+        """根据按键名称字符串更新Qt.Key值"""
+        self.hotkey_name = key_name.upper()
+        # 使用QKeySequence将字符串（如"F5"）转换为Qt.Key枚举值
+        key_sequence = QKeySequence.fromString(self.hotkey_name)
+        if not key_sequence.isEmpty():
+            self.hotkey = key_sequence[0]
+            print(self.hotkey)
+        else:
+            # 如果配置无效，回退到F5
+            self.hotkey_name = "F5"
+            self.hotkey = QKeySequence.fromString(self.hotkey_name)[0]
+            QMessageBox.warning(self, "快捷键警告", f"无法识别的快捷键 '{key_name}'，已重置为 F5。")
+
+    def update_hotkey_button_text(self):
+        """更新设置快捷键按钮的文本"""
+        if self.is_capturing_hotkey:
+            self.set_hotkey_button.setText("请按下按键...")
+        else:
+            self.set_hotkey_button.setText(f"{self.hotkey_name}")
+
+    def save_config(self):
+        """保存当前配置到config.ini文件"""
+        try:
+            self.config.set('Settings', 'hotkey', self.hotkey_name)
+            with open(self.config_path, 'w', encoding='utf-8') as configfile:
+                self.config.write(configfile)
+        except Exception as e:
+            QMessageBox.critical(self, "保存失败", f"无法保存配置文件：\n{e}")
+
+    def keyPressEvent(self, event):
+        """重写此方法以捕获和响应快捷键"""
+        if self.is_capturing_hotkey:
+            key = event.key()
+            # 忽略单独的修饰键（Ctrl, Shift, Alt）
+            if key in (Qt.Key_Control, Qt.Key_Shift, Qt.Key_Alt, Qt.Key_Meta):
+                return
+
+            # 将按键代码转换为可读字符串
+            key_name = QKeySequence(key).toString(QKeySequence.NativeText).upper()
+            self.update_hotkey_from_name(key_name)
+            self.save_config()
+
+            self.is_capturing_hotkey = False
+            self.update_hotkey_button_text()
+            event.accept()
+            return
+        
+        # 如果不是在设置快捷键，并且按下的键是已设定的热键
+        if not event.isAutoRepeat() and event.key() == self.hotkey.key():
+            if self.ready_button.isEnabled():
+                print(f"快捷键 {self.hotkey_name} 按下，触发吟唱。")
+                self.on_ready_click()
+                event.accept()
+                return
+
+        super().keyPressEvent(event) # 将事件传递给父类
+
+    def on_set_hotkey_click(self):
+        """当用户点击“设置快捷键”按钮时调用"""
+        self.is_capturing_hotkey = True
+        self.update_hotkey_button_text()
+        self.set_hotkey_button.setDown(False) # 立即弹起按钮
+    
     def update_status_ui(self, state):
         self.update_single_status(self.my_status_widget, state['host_ready'])
         self.update_single_status(self.opponent_status_widget, state['participant_ready'])
@@ -328,34 +424,52 @@ class MainWindow(QMainWindow):
         indicator.setProperty("ready", "true" if is_ready else "false")
         indicator.style().unpolish(indicator)
         indicator.style().polish(indicator)
+
+    def update_pos_button_state(self, is_locked):
+        """更新锁定奇点按钮的视觉状态和文本。"""
+        self.set_pos_button.setProperty("locked", "true" if is_locked else "false")
+        
+        if is_locked:
+            self.set_pos_button.setText("✔️ 锁定完成")
+            if self.click_pos:
+                self.set_pos_button.setToolTip(f"奇点已锁定: ({self.click_pos.x}, {self.click_pos.y})")
+        else:
+            self.set_pos_button.setText("⚡️ 锁定奇点")
+            self.set_pos_button.setToolTip(f"点击后在 {self.set_pos_delay} 毫秒内捕获鼠标位置")
+        self.set_pos_button.style().unpolish(self.set_pos_button)
+        self.set_pos_button.style().polish(self.set_pos_button)
         
     def on_connection_success(self):
         self.ready_button.setEnabled(True)
+        self.set_pos_button.setEnabled(True)
         self.on_action_mode_changed()
+        self.update_pos_button_state(False)
         
     def capture_position(self):
         self.click_pos = pyautogui.position()
-        self.pos_label.setText(f"({self.click_pos.x}, {self.click_pos.y})")
+        self.update_pos_button_state(True)
         self.show()
 
     def on_ready_click(self):
+        # 增加一个检查，防止在设置快捷键时触发
+        if self.is_capturing_hotkey:
+            return
         self.ready_button.setEnabled(False)
         self.socket_thread.send_ready()
 
     def on_set_pos_click(self):
-        self.pos_label.setText("3秒内校准...")
+        # 每次点击锁定都应该重置状态，等待新的坐标
+        self.update_pos_button_state(False)
+        self.click_pos = None
         self.hide()
         QTimer.singleShot(self.set_pos_delay, self.capture_position)
 
     def on_action_mode_changed(self):
-        self.set_pos_button.setEnabled(self.socket_thread.sio.connected)
-
         is_click_mode = self.radio_click.isChecked()
-        if is_click_mode:
-            self.action_mode = 'click'
-        else:
-            self.action_mode = 'scroll'
+        self.action_mode = 'click' if is_click_mode else 'scroll'
         print(f"动作模式已切换为: {self.action_mode}")
+        if self.socket_thread.sio.connected:
+            self.set_pos_button.setEnabled(True)
 
     def perform_action(self):
         if self.action_mode == 'click':
@@ -375,7 +489,6 @@ class MainWindow(QMainWindow):
                 time.sleep(0.1) # 等待窗口激活
 
                 # 在已激活的窗口上，模拟一次完整的按下和抬起
-                # pyautogui.moveTo(self.click_pos) # 这步可以省略，因为mouseDown/Up会自动移动
                 pyautogui.mouseDown(self.click_pos, button='left')
                 time.sleep(0.05) # 模拟按下的瞬间
                 pyautogui.mouseUp(self.click_pos, button='left')
@@ -426,8 +539,12 @@ class MainWindow(QMainWindow):
         QMessageBox.critical(self, "链接中断", f"无法连接至阿克夏中枢: {self.server_url}。请检查config.ini文件和网络连接。")
         self.ready_button.setEnabled(False)
         self.set_pos_button.setEnabled(False)
+        self.update_pos_button_state(False)
     
     def closeEvent(self, event):
+        # 确保在关闭时，如果正在设置快捷键，则取消该状态
+        if self.is_capturing_hotkey:
+            self.is_capturing_hotkey = False
         self.socket_thread.stop()
         event.accept()
 
