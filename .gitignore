@@ -131,3 +131,5 @@ config.py  # 如果你的 config.py 包含敏感信息，请忽略它，并提�
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+
+uv.lock
