@@ -96,3 +96,38 @@ button:disabled {
     cursor: not-allowed;
     box-shadow: none;
 }
+
+/* === Mobile & Touch Device Enhancements === */
+/* Using interaction media features to target touch-only devices,
+   ignoring small desktop windows. */
+@media (hover: none) and (pointer: coarse) {
+
+    /* Let the container fill more of the screen and use a flex layout */
+    .container {
+        display: flex; /* Override inline-flex */
+        flex-direction: column; /* Explicitly set direction for child element growth */
+        width: 80vw;
+        height: 50vh;
+        min-width: 150px; /* Ensure it's not smaller than the original popup intent */
+        min-height: 150px; 
+        gap: 20px; /* A bit more space between status and button */
+    }
+
+    /* Make the button a large, TALL touch target that fills available space */
+    button {
+        flex-grow: 1; /* KEY CHANGE: Allows the button to expand vertically */
+        display: flex; /* Use flex to center the text inside the now-tall button */
+        align-items: center;
+        justify-content: center;
+        padding: 0 15px; /* Vertical padding is no longer needed, flex-grow handles height */
+        font-size: 28px; /* Make font bigger to match */
+        border-radius: 16px;
+    }
+
+    /* Scale up status indicators for better visibility */
+    .status-indicator {
+        width: 30px;
+        height: 30px;
+        border-radius: 15px; /* Keep it round */
+    }
+}
